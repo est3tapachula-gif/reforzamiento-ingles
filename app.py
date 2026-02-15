@@ -1,34 +1,36 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# Configuración básica de la página
+# Configuración de página
 st.set_page_config(page_title="Portal Inglés EST3", layout="wide")
-
-# Conexión con tu Google Sheet (usa la URL de tus Secrets)
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("📚 Portal de Reforzamiento - EST3")
 st.markdown("---")
 
-# 1. ENTRADA DE DATOS PARA EL ALUMNO
+# URL Directa de tu hoja (formato CSV para evitar errores de conexión)
+SHEET_ID = "1ywiEIKJYqvDI8TH7I-HoyH8IUOAW_Dn8JA9rkNoQ1kU"
+
+# Función para leer cualquier pestaña de tu hoja
+def leer_hoja(nombre_pestana):
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
+    return pd.read_csv(url)
+
+# 1. ENTRADA DE DATOS
 col1, col2 = st.columns(2)
 
 with col1:
-    # Lista de grupos limpia (asegúrate que así se llamen tus pestañas)
     lista_grupos = ["1G", "1H", "1I", "1J", "1K", "2G", "2H", "2I", "2J", "2K", "3G", "3H"]
     grupo_sel = st.selectbox("Selecciona tu Grupo:", lista_grupos)
 
 with col2:
     matricula_input = st.text_input("Ingresa tu Matrícula:").strip().upper()
 
-# 2. PROCESO DE VALIDACIÓN
 if matricula_input:
     try:
-        # Leer la pestaña del grupo seleccionado
-        df_alumnos = conn.read(worksheet=grupo_sel)
+        # Intentar leer la pestaña del grupo
+        df_alumnos = leer_hoja(grupo_sel)
         
-        # Buscar al alumno en la columna 'MATRICULA'
+        # Buscar alumno
         alumno = df_alumnos[df_alumnos['MATRICULA'].astype(str).str.strip().str.upper() == matricula_input]
 
         if not alumno.empty:
@@ -40,27 +42,17 @@ if matricula_input:
             else:
                 st.success(f"Bienvenido(a), {nombre}")
                 
-                # 3. SECCIÓN DE ACTIVIDADES
-                # Leemos la pestaña llamada ACTIVIDADES
-                df_act = conn.read(worksheet="ACTIVIDADES")
+                # Leer pestaña ACTIVIDADES
+                df_act = leer_hoja("ACTIVIDADES")
+                actividad_sel = st.selectbox("Selecciona el ejercicio:", df_act['EJERCICIO'].tolist())
                 
-                # Menú de ejercicios disponibles
-                actividad_sel = st.selectbox("Selecciona el ejercicio a realizar:", df_act['EJERCICIO'].tolist())
-                
-                # Extraemos el link de la columna LINK
                 link_ejercicio = df_act[df_act['EJERCICIO'] == actividad_sel]['LINK'].values[0]
                 
-                st.info(f"Instrucciones: Completa el ejercicio de LearningApps aquí abajo.")
-                
-                # Mostramos el juego/ejercicio
+                st.info(f"Realizando: {actividad_sel}")
                 st.components.v1.iframe(link_ejercicio, height=700, scrolling=True)
-
-                if st.button("✅ YA TERMINÉ MI ACTIVIDAD"):
-                    st.balloons()
-                    st.success("¡Excelente trabajo! Tu progreso ha sido registrado.")
         else:
-            st.warning("Matrícula no encontrada en este grupo. Revisa tus datos.")
+            st.warning("Matrícula no encontrada.")
             
     except Exception as e:
-        st.error(f"Error de conexión: {e}")
-        st.info("Revisa que tus 'Secrets' en Streamlit tengan la URL correcta de la hoja.")
+        st.error(f"Error al cargar los datos: {e}")
+        st.info("Verifica que el nombre de la pestaña en Excel sea idéntico al seleccionado.")
