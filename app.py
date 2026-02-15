@@ -1,21 +1,47 @@
 import streamlit as st
 import pandas as pd
 
-# Configuración de página
+# 1. Configuración de página
 st.set_page_config(page_title="Portal Inglés EST3", layout="wide")
 
-st.title("📚 Portal de Reforzamiento - EST3")
-st.markdown("---")
+# 2. Estilo Visual (Color Vino y Blanco)
+st.markdown("""
+    <style>
+    .stApp { background-color: white; }
+    h1 { color: #800020; text-align: center; border-bottom: 3px solid #800020; }
+    .stButton>button { background-color: #800020; color: white; border-radius: 10px; width: 100%; }
+    .stSelectbox label, .stTextInput label { color: #800020; font-weight: bold; }
+    /* Estilo para la barra lateral */
+    [data-testid="stSidebar"] { background-color: #f8f8f8; border-right: 2px solid #800020; }
+    </style>
+    """, unsafe_allow_index=True)
 
-# URL Directa de tu hoja (formato CSV para evitar errores de conexión)
+st.title("📚 PORTAL DE REFORZAMIENTO - EST3")
+
+# URL Directa de tu hoja
 SHEET_ID = "1ywiEIKJYqvDI8TH7I-HoyH8IUOAW_Dn8JA9rkNoQ1kU"
 
-# Función para leer cualquier pestaña de tu hoja
 def leer_hoja(nombre_pestana):
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
+    # Agregamos un truco para que no use caché y se actualice al instante
+    import time
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}&t={int(time.time())}"
     return pd.read_csv(url)
 
-# 1. ENTRADA DE DATOS
+# --- BARRA LATERAL (TOP 5) ---
+with st.sidebar:
+    st.markdown("<h2 style='color: #800020; text-align: center;'>🏆 TOP 5</h2>", unsafe_allow_index=True)
+    try:
+        # Intenta leer la pestaña AVANCES
+        df_puntos = leer_hoja("AVANCES")
+        # Ordena de mayor a menor y toma los primeros 5
+        top_5 = df_puntos.sort_values(by="PUNTOS", ascending=False).head(5)
+        
+        for i, row in top_5.iterrows():
+            st.info(f"🥇 **{row['NOMBRE']}**\n\n{row['PUNTOS']} Puntos")
+    except:
+        st.write("Cargando tabla de posiciones...")
+
+# --- CUERPO PRINCIPAL ---
 col1, col2 = st.columns(2)
 
 with col1:
@@ -27,10 +53,7 @@ with col2:
 
 if matricula_input:
     try:
-        # Intentar leer la pestaña del grupo
         df_alumnos = leer_hoja(grupo_sel)
-        
-        # Buscar alumno
         alumno = df_alumnos[df_alumnos['MATRICULA'].astype(str).str.strip().str.upper() == matricula_input]
 
         if not alumno.empty:
@@ -38,21 +61,23 @@ if matricula_input:
             status = alumno.iloc[0]['STATUS']
 
             if status == "BAJA":
-                st.error(f"Estatus: BAJA. El alumno(a) {nombre} debe acudir con el maestro.")
+                st.error(f"Estatus: BAJA. Contacta al maestro.")
             else:
                 st.success(f"Bienvenido(a), {nombre}")
                 
-                # Leer pestaña ACTIVIDADES
                 df_act = leer_hoja("ACTIVIDADES")
                 actividad_sel = st.selectbox("Selecciona el ejercicio:", df_act['EJERCICIO'].tolist())
                 
                 link_ejercicio = df_act[df_act['EJERCICIO'] == actividad_sel]['LINK'].values[0]
                 
-                st.info(f"Realizando: {actividad_sel}")
+                st.markdown(f"### Actividad: <span style='color:#800020'>{actividad_sel}</span>", unsafe_allow_index=True)
                 st.components.v1.iframe(link_ejercicio, height=700, scrolling=True)
+                
+                if st.button("✅ REGISTRAR TÉRMINO"):
+                    st.balloons()
+                    st.success("¡Excelente! Tu participación ha sido registrada.")
         else:
             st.warning("Matrícula no encontrada.")
             
     except Exception as e:
-        st.error(f"Error al cargar los datos: {e}")
-        st.info("Verifica que el nombre de la pestaña en Excel sea idéntico al seleccionado.")
+        st.error(f"Error: {e}")
